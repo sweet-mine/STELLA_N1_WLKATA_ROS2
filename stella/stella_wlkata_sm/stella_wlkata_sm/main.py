@@ -38,12 +38,16 @@ class ROS2SharedMemoryBridge(Node):
         self.direct_shm = ShmWriter('/dev/shm/ros_bridge_direct', 256)
         self.gripper_shm = ShmWriter('/dev/shm/ros_bridge_gripper', 10)
         self.homing_shm = ShmWriter('/dev/shm/ros_bridge_homing', 10)
+        self.block_pose_shm = ShmWriter('/dev/shm/ros_bridge_block_pose', 64)
+        self.grab_shm = ShmWriter('/dev/shm/ros_bridge_grab', 10)
 
         self.create_subscription(Pose, '/pose', self.pose_cb, 10)
         self.create_subscription(JointState, '/jointstate', self.js_cb, 10)
         self.create_subscription(String, '/direct', self.direct_cb, 10)
         self.create_subscription(Bool, '/gripper', self.gripper_cb, 10)
         self.create_subscription(Bool, '/homing', self.homing_cb, 10)
+        self.create_subscription(Pose, '/block_pose', self.block_pose_cb, 10)
+        self.create_subscription(Bool, '/grab', self.grab_cb, 10)
 
     def pose_cb(self, msg):
         data = struct.pack('7f',
@@ -72,6 +76,21 @@ class ROS2SharedMemoryBridge(Node):
 
     def homing_cb(self, msg):
         self.homing_shm.write(b'\x01' if msg.data else b'\x00')
+    
+    def block_pose_cb(self, msg):
+        data = struct.pack('7f',
+            msg.position.x,
+            msg.position.y,
+            msg.position.z,
+            msg.orientation.x,
+            msg.orientation.y,
+            msg.orientation.z,
+            msg.orientation.w
+        )
+        self.block_pose_shm.write(data)
+        
+    def grab_cb(self, msg):
+        self.grab_shm.write(b'\x01' if msg.data else b'\x00')
 
     def destroy(self):
         self.pose_shm.close()
@@ -79,6 +98,8 @@ class ROS2SharedMemoryBridge(Node):
         self.direct_shm.close()
         self.gripper_shm.close()
         self.homing_shm.close()
+        self.block_pose_shm.close()
+        self.grab_shm.close()
 
 def main(args=None):
     rclpy.init(args=args)
